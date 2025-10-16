@@ -17,14 +17,14 @@ from PIL import Image
 TICKET_PAGE_URL = "https://tickets.interpark.com/special/sports/promotion/41"
 
 # [필수] 티켓팅 시작 시간을 정확하게 입력하세요. (24시간 기준)
-TARGET_TIME = datetime.datetime(2025, 10, 16, 22, 10, 0) # 예시
+TARGET_TIME = datetime.datetime(2025, 10, 16, 22, 37, 30) # 예시
 
 # [필수] 클릭하려는 특정 버튼의 XPath 주소를 입력하세요.
 MY_BUTTON_XPATH = "//*[@id='__next']/div/div/div/div[2]/div[3]/ul/li[3]/div/div[2]/button"  # 예시: 3번째 경기
 
 # [필수] Tesseract-OCR을 설치한 경로를 입력하세요.
 # 예시: r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-TESSERACT_PATH = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+TESSERACT_PATH = r'C:\Tesseract_OCR\tesseract.exe'
 
 # ==============================================================================
 # ⬆️ 사용자 설정 영역 끝 ⬆️
@@ -164,9 +164,9 @@ def solve_captcha(driver):
     print("\n--- 보안문자 처리 시작 ---")
     
     # ⭐️ 중요: 실제 보안문자 관련 요소들의 XPath 또는 ID로 수정해야 합니다.
-    captcha_image_xpath = "//*[@id='imgCaptcha']" # 예시
-    captcha_input_id = "txtCaptcha" # 예시
-    confirm_button_xpath = "//*[@id='btnNext']" # 예시
+    captcha_image_xpath = "//*[@id='imgCaptcha']" 
+    captcha_input_id = "txtCaptcha" 
+    confirm_button_xpath = "//*[@id='divRecaptcha']/div[1]/div[1]/a[1]" 
 
     # 보안문자 입력에 성공할 때까지 최대 5회 시도
     for attempt in range(5):
@@ -187,7 +187,7 @@ def solve_captcha(driver):
             
             # 4. Tesseract OCR로 텍스트 추출
             # lang='kor' 또는 'eng' 등 사이트에 맞게 설정
-            text = pytesseract.image_to_string(image, lang='kor', config='--psm 6').strip()
+            text = pytesseract.image_to_string(image, lang='eng', config='--psm 6').strip()
             print(f"   > 인식된 텍스트: {text}")
 
             # 5. 입력창에 텍스트 입력 및 확인 버튼 클릭
