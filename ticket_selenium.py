@@ -10,17 +10,17 @@ import pytesseract
 from PIL import Image, ImageEnhance
 
 # ==============================================================================
-#  사용자 설정 영역: 이 부분을 직접 채워주셔야 합니다.
+# ⬇️ 1. 사용자 설정 영역: 이 부분을 직접 채워주셔야 합니다. ⬇️
 # ==============================================================================
 
 # [필수] 여러 경기가 있는 예매 페이지 URL을 입력하세요.
 TICKET_PAGE_URL = "https://tickets.interpark.com/special/sports/promotion/41"
 
 # [필수] 티켓팅 시작 시간을 정확하게 입력하세요. (24시간 기준)
-TARGET_TIME = datetime.datetime(2025, 10, 17, 9, 46, 0)
+TARGET_TIME = datetime.datetime(2025, 10, 17, 13, 7, 40)
 
 # [필수] 클릭하려는 특정 버튼의 XPath 주소를 입력하세요.
-MY_BUTTON_XPATH = "//*[@id='__next']/div/div/div/div[2]/div[3]/ul/li[1]/div/div[2]/button"
+MY_BUTTON_XPATH = "//*[@id='__next']/div/div/div/div[2]/div[3]/ul/li[2]/div/div[2]/button"
 
 # [필수] Tesseract-OCR을 설치한 경로를 입력하세요.
 TESSERACT_PATH = r'C:\Tesseract_OCR\tesseract.exe'
@@ -33,7 +33,7 @@ TESSERACT_PATH = r'C:\Tesseract_OCR\tesseract.exe'
 def run_macro():
     """셀레니움 티켓팅 매크로를 실행합니다."""
     
-    # Tesseract 경로 설정
+    # --- [수정] 빠진 Tesseract 경로 설정 코드 추가 ---
     pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
     
     driver = None
@@ -62,7 +62,7 @@ def run_macro():
         while True:
             try:
                 book_button = WebDriverWait(driver, 0.5).until(
-                    EC.element_to_be_clickable((By.XPATH, MY_BUTTON_XPATH))
+                    EC.element_to_be_clickable((By.XPATH, MY_BUTTON_XPATH)) 
                 )
                 
                 reaction_end_time = time.monotonic()
@@ -126,37 +126,89 @@ def handle_booking_process(driver):
         print(f"🔴 새 창으로 전환하는 데 실패했습니다: {e}")
         return
 
-    # 대기열 처리
-    try:
-        queue_element_xpath = "//*[@id='ifrmWait']"
-        print("⏳ 대기열 페이지 확인 중...")
-        WebDriverWait(driver, 600).until(
-            EC.invisibility_of_element_located((By.XPATH, queue_element_xpath))
-        )
-        print("✅ 대기열 통과!")
-    except Exception:
-        print("🟡 대기열이 없거나 이미 통과했습니다.")
+    wait_for_queue_or_popup(driver)
 
-    # 팝업 공지 닫기
-    try:
-        popup_iframe_name = "ifrmSeat"
-        WebDriverWait(driver, 10).until(
-            EC.frame_to_be_available_and_switch_to_it((By.NAME, popup_iframe_name))
-        )
-        print("✅ 공지 팝업 iframe으로 전환 성공.")
 
-        close_button_xpath = "//*[@id='divBookNoticeLayer']/div[2]/div[1]/a"
+def wait_for_queue_or_popup(driver):
+    """대기열이 있으면 통과를 기다리고, 없으면 바로 팝업을 닫습니다."""
+    
+    queue_text_xpath = "//*[@id='__next']/div/div/div/div[2]/div[1]/div[1]/h3"
+    popup_close_xpath = "//*[@id='divBookNoticeLayer']/div[2]/div[1]/a"
+    
+    max_wait_time = 600
+    start_time = time.time()
+    
+    print("⏳ 대기열 또는 팝업을 감지하는 중...")
+    
+    queue_detected = False
+    popup_detected = False
+    
+    while time.time() - start_time < 3:
+        try:
+            queue_element = driver.find_element(By.XPATH, queue_text_xpath)
+            if queue_element.is_displayed():
+                print("\n✅ 대기열이 감지되었습니다!")
+                queue_detected = True
+                break
+        except Exception:
+            pass
+        
+        try:
+            popup_element = driver.find_element(By.XPATH, popup_close_xpath)
+            if popup_element.is_displayed():
+                print("\n✅ 대기열 없이 바로 팝업이 나타났습니다!")
+                popup_detected = True
+                break
+        except Exception:
+            pass
+        
+        elapsed = int(time.time() - start_time)
+        print(f"\r⏳ 페이지 로딩 중... ({elapsed}초)", end="", flush=True)
+        time.sleep(0.1)
+    
+    if queue_detected:
+        print("⏳ 대기열이 사라질 때까지 대기 중...")
+        start_time = time.time()
+        
+        while time.time() - start_time < max_wait_time:
+            try:
+                queue_element = driver.find_element(By.XPATH, queue_text_xpath)
+                
+                if queue_element.is_displayed():
+                    elapsed = int(time.time() - start_time)
+                    print(f"\r⏳ 대기열 대기 중... ({elapsed}초 경과)", end="", flush=True)
+                    time.sleep(0.1)
+                else:
+                    print("\n✅ 대기열 통과!")
+                    time.sleep(0.1)
+                    break
+            except Exception:
+                print("\n✅ 대기열 통과!")
+                time.sleep(0.1)
+                break
+    
+    print("🔍 팝업 닫기 버튼을 찾는 중...")
+    
+    try:
+        try:
+            popup_iframe_name = "ifrmSeat"
+            WebDriverWait(driver, 3).until(
+                EC.frame_to_be_available_and_switch_to_it((By.NAME, popup_iframe_name))
+            )
+            print("✅ 공지 팝업 iframe으로 전환 성공.")
+        except Exception:
+            print("🟡 iframe이 없거나 전환 불필요.")
+        
         close_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, close_button_xpath))
+            EC.element_to_be_clickable((By.XPATH, popup_close_xpath))
         )
         close_button.click()
         print("✅ 팝업 공지 '닫기' 버튼 클릭 성공.")
-    except Exception:
-        print("🟡 팝업 공지가 없거나 이미 닫혔습니다.")
-
-    # 보안문자 자동 완성
+        
+    except Exception as e:
+        print(f"🟡 팝업 닫기 버튼을 찾지 못했습니다: {e}")
+        print("   팝업이 없거나 수동으로 닫아주세요.")
     solve_captcha(driver)
-
 
 def solve_captcha(driver):
     """보안문자 이미지를 인식하여 자동으로 입력합니다."""
@@ -166,7 +218,6 @@ def solve_captcha(driver):
     captcha_input_id = "txtCaptcha"
     confirm_button_xpath = "//*[@id='divRecaptcha']/div[1]/div[1]/a[1]"
     
-    # 먼저 보안문자가 있는지 확인
     try:
         WebDriverWait(driver, 5).until(
             EC.presence_of_element_located((By.XPATH, captcha_image_xpath))
@@ -176,56 +227,43 @@ def solve_captcha(driver):
         print("🟡 보안문자가 없습니다. 다음 단계로 진행합니다.")
         return
 
-    # 보안문자 입력에 성공할 때까지 최대 5회 시도
     for attempt in range(5):
         try:
             print(f"\n({attempt + 1}/5) 보안문자 인식 시도 중...")
             
-            # 1. 보안문자 이미지 요소 찾기
             image_element = driver.find_element(By.XPATH, captcha_image_xpath)
             
-            # 2. 이미지 스크린샷 및 저장
             image_element.screenshot('captcha.png')
             print("   > 이미지 캡처 완료")
             
-            # 3. 이미지 전처리
             image = Image.open('captcha.png')
             
-            # 크기 확대 (OCR 정확도 향상)
             image = image.resize((image.width * 2, image.height * 2), Image.LANCZOS)
             
-            # 흑백 변환
             image = image.convert('L')
             
-            # 대비 강화
             enhancer = ImageEnhance.Contrast(image)
             image = enhancer.enhance(2)
             
-            # 임계값 처리 (더 선명하게)
             threshold = 128
             image = image.point(lambda p: p > threshold and 255)
             
-            image.save('captcha_processed.png')  # 전처리된 이미지 저장 (디버깅용)
+            image.save('captcha_processed.png')
             
-            # 4. Tesseract OCR로 텍스트 추출
-            # 숫자만 있으면 'eng' 또는 'kor+eng', 한글이면 'kor'
             text = pytesseract.image_to_string(
                 image, 
-                lang='eng',  # 또는 'kor' 또는 'kor+eng'
+                lang='eng',
                 config='--psm 7 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
             ).strip()
             
-            # 공백 제거
             text = text.replace(' ', '').replace('\n', '')
             
             print(f"   > 인식된 텍스트: '{text}' (길이: {len(text)})")
             
-            # 텍스트가 비어있거나 너무 짧으면 건너뛰기
             if not text or len(text) < 3:
                 print("   > 텍스트가 너무 짧습니다. 재시도...")
                 raise Exception("텍스트 인식 실패")
             
-            # 5. 입력창에 텍스트 입력
             input_box = driver.find_element(By.ID, captcha_input_id)
             input_box.clear()
             time.sleep(0.3)
@@ -234,21 +272,16 @@ def solve_captcha(driver):
             
             time.sleep(0.5)
             
-            # 6. 확인 버튼 클릭
             confirm_button = driver.find_element(By.XPATH, confirm_button_xpath)
             confirm_button.click()
             print("   > 확인 버튼 클릭")
             
-            # 7. 성공 여부 판단
-            time.sleep(2)  # 페이지 반응 대기
+            time.sleep(2)
             
-            # 보안문자 입력창이 사라졌는지 확인
             try:
                 driver.find_element(By.XPATH, captcha_image_xpath)
-                # 아직 보안문자 화면이 있으면 실패
                 print("   > ❌ 인식 실패. 재시도...")
                 
-                # 새로고침 버튼 클릭 (있다면)
                 try:
                     refresh_button = driver.find_element(By.XPATH, "//*[@id='imgCaptcha']")
                     refresh_button.click()
@@ -256,17 +289,14 @@ def solve_captcha(driver):
                     pass
                     
             except Exception:
-                # 보안문자 화면이 사라졌으면 성공
                 print("   > ✅ 보안문자 입력 성공!")
                 return
 
         except Exception as e:
             print(f"   > ❌ 오류 발생: {e}")
             
-            # 새로고침 버튼 클릭 시도
             try:
                 time.sleep(1)
-                # 보안문자 새로고침 (이미지를 다시 클릭하면 새로고침되는 경우가 많음)
                 image_element = driver.find_element(By.XPATH, captcha_image_xpath)
                 image_element.click()
             except:
@@ -277,7 +307,6 @@ def solve_captcha(driver):
     print("\n🔴 보안문자 자동 입력에 최종 실패했습니다.")
     print("🔔 수동으로 보안문자를 입력해주세요!")
     
-    # 수동 입력 대기
     input("\n보안문자를 직접 입력하고 확인을 누른 후, Enter 키를 눌러주세요...")
 
 
