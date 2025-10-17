@@ -15,7 +15,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 TICKET_PAGE_URL = "https://tickets.interpark.com/special/sports/promotion/41"
 
 # [필수] 티켓팅 시작 시간을 정확하게 입력하세요. (24시간 기준)
-TARGET_TIME = datetime.datetime(2025, 10, 16, 20, 40, 40)  # 예시: 오후 2시 30분
+TARGET_TIME = datetime.datetime(2025, 10, 17, 9, 59, 10)  # 예시: 오후 2시 30분
 
 # [필수] 클릭하려는 특정 버튼의 XPath 주소를 입력하세요.
 MY_BUTTON_XPATH = "//*[@id='__next']/div/div/div/div[2]/div[3]/ul/li[3]/div/div[2]/button"  # 예시: 3번째 경기
@@ -141,7 +141,7 @@ def wait_for_queue_or_popup(driver):
     queue_detected = False
     popup_detected = False
     
-    while time.time() - start_time < 5:
+    while time.time() - start_time < 3:
         # 대기열 체크
         try:
             queue_element = driver.find_element(By.XPATH, queue_text_xpath)
