@@ -10,17 +10,17 @@ import pytesseract
 from PIL import Image, ImageEnhance
 
 # ==============================================================================
-# ⬇️ 1. 사용자 설정 영역: 이 부분을 직접 채워주셔야 합니다. ⬇️
+#  사용자 설정 영역: 이 부분을 직접 채워주셔야 합니다.
 # ==============================================================================
 
 # [필수] 여러 경기가 있는 예매 페이지 URL을 입력하세요.
 TICKET_PAGE_URL = "https://tickets.interpark.com/special/sports/promotion/41"
 
 # [필수] 티켓팅 시작 시간을 정확하게 입력하세요. (24시간 기준)
-TARGET_TIME = datetime.datetime(2025, 10, 16, 22, 51, 0)
+TARGET_TIME = datetime.datetime(2025, 10, 17, 9, 46, 0)
 
 # [필수] 클릭하려는 특정 버튼의 XPath 주소를 입력하세요.
-MY_BUTTON_XPATH = "//*[@id='__next']/div/div/div/div[2]/div[3]/ul/li[3]/div/div[2]/button"
+MY_BUTTON_XPATH = "//*[@id='__next']/div/div/div/div[2]/div[3]/ul/li[1]/div/div[2]/button"
 
 # [필수] Tesseract-OCR을 설치한 경로를 입력하세요.
 TESSERACT_PATH = r'C:\Tesseract_OCR\tesseract.exe'
