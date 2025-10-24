@@ -173,15 +173,15 @@ def wait_for_queue_or_popup(driver):
 # ==============================================================================
 
 def handle_after_popup(driver):
-    """보안문자 수동 입력 후 Enter → 자동 좌석/결제"""
+    """보안문자 수동 입력 후 Enter → 매수 1매 선택 + 다음단계 버튼"""
     try:
         print("\n🔁 ifrmSeat 프레임 접근 중...")
 
-        # 1️⃣ 현재 활성탭 전환
+        # 1️⃣ 활성 예매창 전환
         for w in driver.window_handles:
             driver.switch_to.window(w)
             if "BookMain" in driver.current_url:
-                print(f"✅ 활성 예매창: {driver.current_url}")
+                print(f"✅ 활성 예매창 확인: {driver.current_url}")
                 break
 
         # 2️⃣ ifrmSeat 프레임 진입
@@ -190,54 +190,37 @@ def handle_after_popup(driver):
         )
         print("✅ ifrmSeat 프레임 진입 완료")
 
-        # 3️⃣ 좌석 선택 (3루 1층 내야지정석)
-        seat_xpath = "/html/body/div[1]/div[3]/div[2]/div[1]/a[8]"
-        click_safe(driver, seat_xpath, "3루 1층 내야지정석")
+        # 3️⃣ 좌석 구역 → 선택버튼 → 좌석 → 좌석완료 를 그대로 실행
+        zone = "/html/body/div[1]/div[3]/div[2]/div[1]/a[9]"
+        pick_btn = "/html/body/div[1]/div[3]/div[2]/div[3]/a[1]/img"
+        next_btn = "//*[@id='NextStepImage']"
 
-        # 4️⃣ 자동배정 클릭
-        auto_assign_xpath = "/html/body/div[1]/div[3]/div[2]/div[3]/a[1]/img"
-        click_safe(driver, auto_assign_xpath, "자동배정")
+        click_safe(driver, zone, "구역 선택 (a[9])")
+        click_safe(driver, pick_btn, "재동배정 클릭")
+        
 
-        # 5️⃣ 매수 선택 (2매)
-        qty_xpath = "//*[@id='PriceRow000']/td[3]/select"
-        qty_elem = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, qty_xpath))
-        )
-        Select(qty_elem).select_by_visible_text("2매")
-        print("🎟️ 매수 2매 선택 완료")
-
-        # 6️⃣ 다음단계 클릭
-        next_btn = "//*[@id='SmallNextBtnImage']"
-        click_safe(driver, next_btn, "다음단계 이동")
-
-        # 7️⃣ 약관 처리
+        # 4️⃣ 가격/할인 페이지 프레임 전환 (ifrmBookStep)
         driver.switch_to.default_content()
         WebDriverWait(driver, 10).until(
             EC.frame_to_be_available_and_switch_to_it((By.NAME, "ifrmBookStep"))
         )
-        agree_xpath = "//*[@id='Agree']"
-        save_xpath = "//*[@id='information']/div[2]/a[1]/img"
+        print("✅ 가격/할인 선택 프레임 진입 완료")
 
-        try:
-            agree = driver.find_element(By.XPATH, agree_xpath)
-            if not agree.is_selected():
-                agree.click()
-                print("✅ 약관 전체 동의 완료")
-            driver.find_element(By.XPATH, save_xpath).click()
-            print("💾 약관 저장 완료")
-        except Exception:
-            print("🟡 약관 생략됨 / 이미 선택됨")
-
-        # 8️⃣ 결제단계 클릭
-        driver.switch_to.default_content()
-        WebDriverWait(driver, 10).until(
-            EC.frame_to_be_available_and_switch_to_it((By.ID, "ifrmSeat"))
+        # 5️⃣ 매수 select → 2매 선택
+        qty_xpath = "//*[@id='PriceRow000']/td[3]/select"
+        qty_elem = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.XPATH, qty_xpath))
         )
-        click_safe(driver, next_btn, "결제단계 이동")
-        print("🎉 결제단계 진입 완료!")
+        Select(qty_elem).select_by_visible_text("2매")
+        print("🎟️ 매수 2매 선택 완료")
+
+        # 6️⃣ 다음단계 버튼 클릭
+        next_btn_xpath = "//*[@id='SmallNextBtnImage']"
+        click_safe(driver, next_btn_xpath, "다음단계 클릭")
+        print("🚀 다음단계 이동 완료")
 
     except Exception as e:
-        print(f"⚠️ handle_after_popup 중 오류: {e}")
+        print(f"⚠️ handle_after_popup 오류: {e}")
     finally:
         driver.switch_to.default_content()
 
