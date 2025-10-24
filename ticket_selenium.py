@@ -29,10 +29,10 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 TICKET_PAGE_URL = "https://tickets.interpark.com/special/sports/promotion/41"
 
 # [필수] 티켓팅 시작 시간을 정확하게 입력하세요. (24시간 기준)
-TARGET_TIME = datetime.datetime(2025, 10, 21, 21, 39, 0)  # 예시: 오후 2시 30분
+TARGET_TIME = datetime.datetime(2025, 10, 25, 11, 0, 0)  # 예시: 오전 11시 0분
 
 # [필수] 클릭하려는 특정 버튼의 XPath 주소를 입력하세요.
-MY_BUTTON_XPATH = "//*[@id='__next']/div/div/div/div[2]/div[3]/ul/li[4]/div/div[2]/button"  # 예시: 3번째 경기
+MY_BUTTON_XPATH = "//*[@id='__next']/div/div/div/div[2]/div[3]/ul/li[1]/div/div[2]/button"  # 예시: 1번째 경기
 
 # ==============================================================================
 # ⬆️ 사용자 설정 영역 끝 ⬆️
@@ -149,16 +149,16 @@ def wait_for_queue_or_popup(driver):
     
     queue_text_xpath = "//*[@id='__next']/div/div/div/div[2]/div[1]/div[1]/h3"
     popup_close_xpath = "//*[@id='divBookNoticeLayer']/div[2]/div[1]/a"
-    
-    max_wait_time = 600  # 최대 10분
+
+    max_wait_time = 2400  # 최대 40분
     start_time = time.time()
     
     print("⏳ 대기열 또는 팝업을 감지하는 중...")
     
-    # 1단계: 대기열이 있는지, 팝업이 바로 나타나는지 확인 (최대 5초)
+    # 1단계: 대기열이 있는지, 팝업이 바로 나타나는지 확인 (최대 15초)
     queue_detected = False
     
-    while time.time() - start_time < 5:
+    while time.time() - start_time < 15:
         # 대기열 체크
         try:
             queue_element = driver.find_element(By.XPATH, queue_text_xpath)
