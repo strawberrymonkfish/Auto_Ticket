@@ -14,8 +14,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 # ==============================================================================
 
 TICKET_PAGE_URL = "https://tickets.interpark.com/special/sports/promotion/41"
-TARGET_TIME = datetime.datetime(2025, 10, 21, 21, 39, 0)
-MY_BUTTON_XPATH = "//*[@id='__next']/div/div/div/div[2]/div[3]/ul/li[5]/div/div[2]/button"
+TARGET_TIME = datetime.datetime(2025, 10, 25, 13, 35, 30)
+MY_BUTTON_XPATH = "//*[@id='__next']/div/div/div/div[2]/div[3]/ul/li[4]/div/div[2]/button"
 
 # ==============================================================================
 
@@ -82,13 +82,50 @@ def wait_until_ready():
 
 
 def wait_for_button_and_click(driver):
+    """
+    개선된 버튼 활성화 감지:
+    - 버튼 텍스트에 '예매' 관련 문구가 포함되는지 확인
+    - element.is_enabled()와 aria-disabled/disabled 속성 검사
+    - (선택) computed backgroundColor로 시각적 활성화 여부 보조검사
+    """
     start = time.monotonic()
+    xpath = MY_BUTTON_XPATH
+
+    def _is_really_ready(drv):
+        try:
+            el = drv.find_element(By.XPATH, xpath)
+            text = (el.text or "").strip()
+            enabled = el.is_enabled()
+            aria_disabled = (el.get_attribute("aria-disabled") or "").lower()
+            disabled_attr = el.get_attribute("disabled")
+            # computed style (보조): 예매 버튼은 보통 배경색이 채워짐 — 필요시 조건 강화
+            try:
+                bg = drv.execute_script("return window.getComputedStyle(arguments[0]).backgroundColor;", el) or ""
+            except Exception:
+                bg = ""
+
+            # debug: 필요하면 주석 해제해서 상태 확인
+            # print(f"[DEBUG] text={text!r}, enabled={enabled}, aria={aria_disabled!r}, disabled={disabled_attr!r}, bg={bg!r}")
+
+            text_ok = ("예매하기" in text) or ("예매" in text and "예매예정" not in text)  # 유연한 텍스트 매칭
+            aria_ok = (aria_disabled == "" or aria_disabled == "false")
+            disabled_ok = (disabled_attr is None)
+
+            # 최종 조건: 텍스트 신호 + enable 관련 체크
+            if text_ok and enabled and aria_ok and disabled_ok:
+                return el
+            # 보조: 텍스트가 정확하지 않더라도 bg 색상으로 판단하려면 아래처럼 허용
+            # if enabled and "rgb" in bg and not bg.startswith("rgba(0, 0, 0, 0)"):
+            #     return el
+
+            return False
+        except Exception:
+            return False
+
     try:
-        btn = WebDriverWait(driver, 600).until(
-            EC.element_to_be_clickable((By.XPATH, MY_BUTTON_XPATH))
-        )
+        btn = WebDriverWait(driver, 600, poll_frequency=0.2).until(_is_really_ready)
         reaction = time.monotonic() - start
-        print(f"\n✅ 예매버튼 활성화 감지 (반응 {reaction:.4f}s) → 클릭!")
+        print(f"\n✅ 예매버튼 실활성화 감지 (반응 {reaction:.4f}s) → 클릭!")
         btn.click()
     except TimeoutException:
         print("🔴 10분 내 버튼 활성화 실패")
@@ -191,12 +228,12 @@ def handle_after_popup(driver):
         print("✅ ifrmSeat 프레임 진입 완료")
 
         # 3️⃣ 좌석 구역 → 선택버튼 → 좌석 → 좌석완료 를 그대로 실행
-        zone = "/html/body/div[1]/div[3]/div[2]/div[1]/a[9]"
+        zone = "/html/body/div[1]/div[3]/div[2]/div[1]/a[7]"
         pick_btn = "/html/body/div[1]/div[3]/div[2]/div[3]/a[1]/img"
         next_btn = "//*[@id='NextStepImage']"
 
-        click_safe(driver, zone, "구역 선택 (a[9])")
-        click_safe(driver, pick_btn, "재동배정 클릭")
+        click_safe(driver, zone, "구역 선택 (a[7])")
+        click_safe(driver, pick_btn, "자동배정 클릭")
         
 
         # 4️⃣ 가격/할인 페이지 프레임 전환 (ifrmBookStep)
