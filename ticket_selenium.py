@@ -20,15 +20,97 @@ MY_BUTTON_XPATH = "//*[@id='__next']/div/div/div/div[2]/div[3]/ul/li[4]/div/div[
 # ==============================================================================
 
 
+def inject_button_text_observer(driver, text_xpath, button_xpath=None, watch_ms=30000):
+    """
+    페이지 내부에 MutationObserver를 주입하여 text_xpath(또는 button_xpath)의 텍스트가
+    '예매하기'로 변하면 즉시 버튼을 클릭합니다.
+    - 비차단 주입(브라우저 내부에서만 동작) => Python 왕복 지연 없음
+    - watch_ms: 안전타임아웃(밀리초)
+    """
+    js = r"""
+    (function(textXpath, btnXpath, watchMs){
+        try{
+            if(window._ticketObserverInjected) return true;
+            function elByXPath(x){
+                try{ return document.evaluate(x, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; }catch(e){return null;}
+            }
+            function getTextFromTextNode(x){
+                try{
+                    var tn = elByXPath(x);
+                    if(!tn) return null;
+                    // text() 노드일 경우 nodeValue, 아닐 경우 innerText
+                    if(tn.nodeType === 3) return (tn.nodeValue||'').trim();
+                    if(tn.innerText) return tn.innerText.trim();
+                    return (tn.textContent||'').trim();
+                }catch(e){return null;}
+            }
+            function isDesired(s){
+                if(!s) return false;
+                if(/판매예정|예매예정/.test(s)) return false;
+                return /예매하기/.test(s);
+            }
+            function tryClick(){
+                try{
+                    var btn = btnXpath ? elByXPath(btnXpath) : null;
+                    if(!btn){
+                        // text node의 부모가 버튼이면 사용
+                        var tn = elByXPath(textXpath);
+                        if(tn && tn.parentNode && tn.parentNode.tagName && tn.parentNode.tagName.toLowerCase()==='button') btn = tn.parentNode;
+                        else {
+                            // fallback: 가장 가까운 button ancestor
+                            if(tn && tn.parentNode) btn = tn.parentNode.closest && tn.parentNode.closest('button');
+                        }
+                    }
+                    if(btn){
+                        try{ btn.click(); }catch(e){ try{ btn.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true})); }catch(e){} }
+                        return true;
+                    }
+                }catch(e){}
+                return false;
+            }
+
+            // 즉시 검사
+            var t = getTextFromTextNode(textXpath) || getTextFromTextNode(btnXpath);
+            if(isDesired(t)){ tryClick(); window._ticketObserverInjected = true; return true; }
+
+            // MutationObserver: 변화 시마다 재조회
+            var obs = new MutationObserver(function(){
+                try{
+                    var txt = getTextFromTextNode(textXpath) || getTextFromTextNode(btnXpath);
+                    if(isDesired(txt)){
+                        try{ obs.disconnect(); }catch(e){}
+                        tryClick();
+                        window._ticketObserverInjected = true;
+                    }
+                }catch(e){}
+            });
+            obs.observe(document.documentElement, { childList:true, subtree:true, attributes:true, characterData:true });
+            // 안전 타임아웃
+            setTimeout(function(){ try{ obs.disconnect(); }catch(e){} }, watchMs);
+            window._ticketObserverInjected = true;
+            return true;
+        }catch(e){
+            return false;
+        }
+    })(arguments[0], arguments[1], arguments[2]);
+    """
+    try:
+        driver.execute_script(js, text_xpath, button_xpath or "", int(watch_ms))
+        return True
+    except Exception:
+        return False
+
+
 def run_macro():
     driver = None
+    keep_browser_open = False
     try:
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service)
         driver.maximize_window()
 
         print("=" * 60)
-        print("🎟️ 인터파크 티켓팅 매크로 시작")
+        print("🎟️ 인터파크 티켓팅 매크로 시작 (팝업 닫기까지 수행)")
         print("=" * 60)
 
         # 로그인 페이지
@@ -44,23 +126,29 @@ def run_macro():
         driver.get(TICKET_PAGE_URL)
         print(f"✅ 예매페이지 이동 완료: {TICKET_PAGE_URL}")
 
+        # --- 여기에 관찰자(비차단) 주입: 텍스트 XPath를 제공하면 그 node/text가 '예매하기'가 되는 순간 클릭합니다.
+        # 예: text_xpath = "//*[@id='__next']/div/div/div/div[2]/div[3]/ul/li[3]/div/div[2]/button/text()"
+        text_xpath = MY_BUTTON_XPATH + "/text()"
+        inject_button_text_observer(driver, text_xpath, MY_BUTTON_XPATH, watch_ms=30000)
+
         wait_until_ready()
+        # 기존 wait_for_button_and_click는 폴백으로 남겨두되, 내부 관찰자가 이미 클릭 시도하므로 보통 여기서는 폴백 불필요
         wait_for_button_and_click(driver)
         handle_popup_window(driver)
 
-        print("\n🎯 팝업 닫기 완료. 보안문자 입력 후 '입력완료' 클릭 → 터미널에 Enter ▶")
-        input()
-        handle_after_popup(driver)
-        print("\n🎉 예매 자동화 완료 (결제단계 진입!).")
-
-        time.sleep(600)
+        # 팝업 닫기까지 수행한 뒤 브라우저를 열어둔 상태로 종료
+        print("\n✅ 팝업 닫기 완료. 이후 보안문자 입력 및 수동 절차는 사용자께서 진행하세요.")
+        print("브라우저는 열려있습니다. 수동 작업이 끝나면 브라우저를 직접 닫아주세요.")
+        keep_browser_open = True
+        return
 
     except Exception as e:
         print(f"🔴 오류 발생: {e}")
         import traceback
         traceback.print_exc()
     finally:
-        if driver:
+        # 팝업 닫기 이후 사용자가 수동으로 이어가도록 브라우저를 닫지 않음
+        if driver and not keep_browser_open:
             driver.quit()
 
 
